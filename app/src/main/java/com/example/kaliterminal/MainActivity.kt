@@ -88,7 +88,7 @@ class MainActivity : Activity() {
             hint = "Search installed apps..."
             setHintTextColor(muted); setTextColor(green); textSize = 14f
             typeface = Typeface.MONOSPACE
-            singleLine = true
+            setSingleLine(true)
             setPadding(dp(12), dp(10), dp(12), dp(10))
             background = rounded(panel, green, 1)
         }
@@ -110,7 +110,7 @@ class MainActivity : Activity() {
         val commandRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val command = EditText(this).apply {
             hint = "Enter command..."; setHintTextColor(muted); setTextColor(green); textSize = 13f
-            typeface = Typeface.MONOSPACE; singleLine = true; imeOptions = EditorInfo.IME_ACTION_DONE
+            typeface = Typeface.MONOSPACE; setSingleLine(true); imeOptions = EditorInfo.IME_ACTION_DONE
             setPadding(dp(10), dp(10), dp(10), dp(10)); background = rounded(panel, green, 1)
         }
         commandRow.addView(command, LinearLayout.LayoutParams(0, dp(46), 1f))
