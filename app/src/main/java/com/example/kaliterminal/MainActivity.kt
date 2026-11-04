@@ -7,6 +7,7 @@ import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.role.RoleManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -580,6 +581,7 @@ class MainActivity : Activity() {
     }
 
     private fun requestHome() {
+        if (!isHomeEnabled()) setHomeEnabled(true)
         if (isDefaultHome()) {
             showHome()
             return
@@ -609,6 +611,53 @@ class MainActivity : Activity() {
             }
         }
         showHome()
+    }
+
+    // ---- enable / disable the launcher (HOME alias) -----------------------
+
+    private fun homeAlias(): ComponentName =
+        ComponentName(packageName, "com.example.kaliterminal.HomeAlias")
+
+    private fun isHomeEnabled(): Boolean {
+        return try {
+            val st = packageManager.getComponentEnabledSetting(homeAlias())
+            st == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+                st == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    private fun setHomeEnabled(enabled: Boolean) {
+        try {
+            packageManager.setComponentEnabledSetting(
+                homeAlias(),
+                if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (e: Exception) {
+            toast("Gagal mengubah status launcher")
+        }
+    }
+
+    private fun confirmDisableLauncher() {
+        AlertDialog.Builder(this)
+            .setTitle("Nonaktifkan launcher?")
+            .setMessage(
+                "Layar utama akan kembali ke launcher bawaan HP. " +
+                    "Aplikasi ini tetap bisa dibuka dari ikonnya dan bisa diaktifkan lagi kapan saja."
+            )
+            .setPositiveButton("Nonaktifkan") { _, _ -> disableLauncher() }
+            .setNegativeButton("Batal", null)
+            .show()
+    }
+
+    private fun disableLauncher() {
+        setHomeEnabled(false)
+        leaveHome()
+        toast("Launcher dinonaktifkan")
+        showPreview()
     }
 
     // ---- screens -----------------------------------------------------------
@@ -713,7 +762,8 @@ class MainActivity : Activity() {
             setOnClickListener { requestHome() }
         }
         val hint = TextView(this).apply {
-            text = "Akan meminta izin menjadikan aplikasi ini layar utama"
+            text = if (isHomeEnabled()) "Akan meminta izin menjadikan aplikasi ini layar utama"
+            else "Launcher sedang nonaktif. JALANKAN akan mengaktifkannya lagi."
             setTextColor(mix(Color.BLACK, accent, 0.5f))
             textSize = 10f
             typeface = Typeface.MONOSPACE
@@ -1147,6 +1197,38 @@ class MainActivity : Activity() {
         body.orientation = LinearLayout.VERTICAL
         scroll.addView(body)
         page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        // ---- launcher on/off
+        body.addView(section("[ LAUNCHER ]"))
+        val homeEnabled = isHomeEnabled()
+        val defaultNow = isDefaultHome()
+        val statusText = if (defaultNow) "Status: AKTIF sebagai layar utama"
+        else if (homeEnabled) "Status: aktif, belum jadi layar utama default"
+        else "Status: NONAKTIF"
+        body.addView(tv(statusText, 11f, muted))
+        body.addView(gap(8))
+        val launcherRow = LinearLayout(this)
+        launcherRow.orientation = LinearLayout.HORIZONTAL
+        if (homeEnabled) {
+            launcherRow.addView(button("NONAKTIFKAN", false) { confirmDisableLauncher() })
+            if (!defaultNow) {
+                launcherRow.addView(
+                    button("JADIKAN DEFAULT", true) { requestHome() },
+                    LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) }
+                )
+            }
+        } else {
+            launcherRow.addView(button("AKTIFKAN LAUNCHER", true) { requestHome() })
+        }
+        body.addView(launcherRow)
+        body.addView(gap(4))
+        body.addView(
+            tv(
+                "Nonaktifkan = layar utama kembali ke launcher bawaan HP. Aplikasi tetap bisa dibuka dari ikonnya.",
+                10f, muted
+            )
+        )
+        body.addView(gap(22))
 
         // ---- nama pengguna
         body.addView(section("[ NAMA PENGGUNA ]"))
@@ -1728,6 +1810,7 @@ class MainActivity : Activity() {
                 "  rename <app> as <nama baru> | rename <app> reset\n" +
                 "  setname <nama>   (ganti 'root')\n" +
                 "  color <nama|#hex> | colors\n" +
+                "  launcher off | launcher on | launcher status\n" +
                 "Note: local UI shortcuts, not a Linux shell."
 
         private fun executeCommand(raw: String) {
@@ -1743,11 +1826,26 @@ class MainActivity : Activity() {
                     log("Loaded ${apps.size} launchable apps.")
                 }
                 "date" -> log(SimpleDateFormat("EEE, dd MMM yyyy  HH:mm:ss", Locale.getDefault()).format(Date()))
-                "about" -> log("Kali Terminal Launcher 1.2\nA terminal-inspired Android home screen.\nby @Rag")
+                "about" -> log("Kali Terminal Launcher 1.3\nA terminal-inspired Android home screen.\nby @Rag")
                 "clear" -> terminalLog.text = ""
                 "sethome" -> {
                     log("Requesting default Home role...")
                     requestHome()
+                }
+                "launcher" -> {
+                    val a = arg.lowercase(Locale.ROOT)
+                    if (a == "off") {
+                        log("Menonaktifkan launcher...")
+                        confirmDisableLauncher()
+                    } else if (a == "on") {
+                        log("Mengaktifkan launcher...")
+                        requestHome()
+                    } else {
+                        val st = if (isDefaultHome()) "AKTIF (layar utama)"
+                        else if (isHomeEnabled()) "aktif, belum default"
+                        else "NONAKTIF"
+                        log("Launcher: $st\nUsage: launcher off | launcher on")
+                    }
                 }
                 "settings", "setting", "pengaturan" -> {
                     log("Opening settings...")
